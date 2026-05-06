@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "Motaabi - Student Attendance",
   description: "Real-time student attendance management",
   manifest: "/manifest.json",
+};
+
+export const viewport = {
   themeColor: "#2563eb",
 };
 
