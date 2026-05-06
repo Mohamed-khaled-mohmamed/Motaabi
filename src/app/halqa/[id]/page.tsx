@@ -315,7 +315,7 @@ export default function HalqaPage() {
                         <div className="text-left"><p className="text-[8px] font-black text-slate-400 uppercase">غياب الشهر</p><p className="text-xl font-black text-red-600 leading-tight">{getFilteredAbsenceCount(s.id, currentDate)} يوم</p></div>
                       </div>
                       <div className="px-5 pb-5">
-                        <div className="flex justify-between items-center mb-3"><h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">سجل الشهر</h4><button onClick={() => scrollCardToToday(s.id)} className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-black text-[8px]"><Target size={10} /> اليوم</button></div>
+                        <div className="flex justify-between items-center mb-3"><h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">سجل الشهر</h4><button onClick={() => scrollToToday()} className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-black text-[8px]"><Target size={10} /> اليوم</button></div>
                         <div ref={el => { timelineRefs.current[s.id] = el; }} className="flex gap-2 overflow-x-auto no-scrollbar py-2">
                           {workingDaysOfMonth.map(d => {
                             const status = attendance[`${s.id}-${format(d, "yyyy-MM-dd")}`];

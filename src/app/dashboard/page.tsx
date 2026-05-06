@@ -23,7 +23,7 @@ interface Invitation {
   halqa_id: string;
   role: string;
   status: 'pending' | 'accepted' | 'rejected';
-  halqas: { name: string };
+  halqas?: { name: string } | null;
 }
 
 export default function Dashboard() {
@@ -50,8 +50,12 @@ export default function Dashboard() {
 
       const { data: inviteData } = await supabase.from("invitations").select(`id, halqa_id, role, status, halqas ( name )`).eq("email", user.email?.toLowerCase());
       if (inviteData) {
-        setInvitations(inviteData.filter(i => i.status === 'pending'));
-        setArchivedInvites(inviteData.filter(i => i.status !== 'pending'));
+        const formattedInvites = (inviteData as any[]).map(i => ({
+          ...i,
+          halqas: Array.isArray(i.halqas) ? i.halqas[0] : i.halqas
+        })) as Invitation[];
+        setInvitations(formattedInvites.filter(i => i.status === 'pending'));
+        setArchivedInvites(formattedInvites.filter(i => i.status !== 'pending'));
       }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
@@ -63,6 +67,14 @@ export default function Dashboard() {
       const { error } = await supabase.from("halqa_members").insert([{ halqa_id: invite.halqa_id, user_id: user?.id, role: invite.role }]);
       if (error && error.code !== '23505') throw error;
       await supabase.from("invitations").update({ status: 'accepted' }).eq("id", invite.id);
+      fetchData();
+    } catch (err: any) { alert(err.message); }
+  };
+
+  const handleRejectInvite = async (id: string) => {
+    try {
+      const { error } = await supabase.from("invitations").update({ status: 'rejected' }).eq("id", id);
+      if (error) throw error;
       fetchData();
     } catch (err: any) { alert(err.message); }
   };
