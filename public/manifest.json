@@ -1,0 +1,25 @@
+{
+  "name": "منصة متابع",
+  "short_name": "متابع",
+  "description": "منصة ذكية لإدارة حلقات التحفيظ والدروس",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "ar"
+}
