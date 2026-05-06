@@ -1,4 +1,4 @@
-import { defaultCacheOnFrontEnd } from "@serwist/next/worker";
+import { defaultCache } from "@serwist/next/worker";
 import { type PrecacheEntry, Serwist } from "serwist";
 
 declare const self: ServiceWorkerGlobalScope & {
@@ -10,7 +10,7 @@ const serwist = new Serwist({
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCacheOnFrontEnd,
+  runtimeCaching: defaultCache,
 });
 
 serwist.addEventListeners();
