@@ -678,7 +678,7 @@ export default function HalqaPage() {
               disabled={isRefreshing || !isOnline}
               title="تحديث قائمة الطلاب"
               className={cn(
-                "p-3 rounded-xl border font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95",
+                "p-3 rounded-xl border font-bold items-center gap-2 shadow-sm transition-all active:scale-95 hidden md:flex",
                 isRefreshing
                   ? "bg-emerald-50 text-emerald-500 border-emerald-100 cursor-wait"
                   : !isOnline
@@ -690,7 +690,7 @@ export default function HalqaPage() {
               <span className="hidden md:inline">{isRefreshing ? "جاري التحديث..." : "تحديث"}</span>
             </button>
             <button onClick={scrollToToday} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-50 text-blue-700 px-5 py-3 rounded-xl font-black border border-blue-100 active:scale-95 shadow-sm">اليوم</button>
-            <button onClick={() => setIsAddModalOpen(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all"><Plus size={20} /> إضافة طالب</button>
+            <button onClick={() => setIsAddModalOpen(true)} className="w-full md:w-auto md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all order-last md:order-none"><Plus size={20} /> إضافة طالب</button>
           </div>
         </header>
 
