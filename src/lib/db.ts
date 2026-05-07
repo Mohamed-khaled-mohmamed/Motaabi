@@ -4,6 +4,7 @@ export interface CachedHalqa {
   id: string;
   name: string;
   settings: any;
+  created_by?: string;
   last_fetched: number;
 }
 

@@ -37,7 +37,27 @@ export default function Dashboard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+
+    // Auto refresh if they are removed from a halqa or a halqa is deleted
+    const channel = supabase
+      .channel('dashboard_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'halqa_members' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'halqas' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invitations' }, () => {
+        fetchData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -46,9 +66,28 @@ export default function Dashboard() {
       if (!user) { router.push("/login"); return; }
 
       const { data: membersData } = await supabase.from("halqa_members").select(`role, halqas ( id, name, created_at )`).eq("user_id", user.id);
-      if (membersData) setHalqas(membersData.map((m: any) => ({ ...m.halqas, role: m.role })).filter(h => h.id));
+      let finalHalqas = [];
+      if (membersData) {
+        finalHalqas = membersData.map((m: any) => ({ ...m.halqas, role: m.role })).filter(h => h.id);
+      }
 
       const { data: inviteData } = await supabase.from("invitations").select(`id, halqa_id, role, status, halqas ( name )`).eq("email", user.email?.toLowerCase());
+
+      // Implicit Kick System: If the user is an editor but their invitation was deleted by the admin, remove them from halqa_members
+      if (inviteData && membersData) {
+        for (const m of membersData) {
+          if (m.role === 'owner') continue;
+          const hId = Array.isArray(m.halqas) ? (m.halqas[0] as any)?.id : (m.halqas as any)?.id;
+          const hasInvite = (inviteData as any[]).find(i => i.halqa_id === hId);
+          if (!hasInvite) {
+            await supabase.from("halqa_members").delete().eq("halqa_id", hId).eq("user_id", user.id);
+            finalHalqas = finalHalqas.filter(h => h.id !== hId);
+          }
+        }
+      }
+
+      setHalqas(finalHalqas);
+
       if (inviteData) {
         const formattedInvites = (inviteData as any[]).map(i => ({
           ...i,
@@ -71,12 +110,26 @@ export default function Dashboard() {
     } catch (err: any) { alert(err.message); }
   };
 
-  const handleRejectInvite = async (id: string) => {
+  const handleRejectInvite = async (invite: Invitation) => {
     try {
-      const { error } = await supabase.from("invitations").update({ status: 'rejected' }).eq("id", id);
+      const { data: { user } } = await supabase.auth.getUser();
+      // Delete the invitation entirely to prevent access
+      const { error } = await supabase.from("invitations").delete().eq("id", invite.id);
       if (error) throw error;
-      fetchData();
-    } catch (err: any) { alert(err.message); }
+      // Also remove from halqa_members if they somehow got added
+      if (user) {
+        await supabase.from("halqa_members").delete().eq("halqa_id", invite.halqa_id).eq("user_id", user.id);
+      }
+      // Immediately remove from local UI state
+      setInvitations(prev => prev.filter(i => i.id !== invite.id));
+    } catch (err: any) {
+      // If delete fails due to RLS, fall back to updating status
+      try {
+        await supabase.from("invitations").update({ status: 'rejected' }).eq("id", invite.id);
+        setInvitations(prev => prev.filter(i => i.id !== invite.id));
+        setArchivedInvites(prev => [...prev, { ...invite, status: 'rejected' }]);
+      } catch (e2: any) { alert("تعذّر رفض الدعوة: " + e2.message); }
+    }
   };
 
   const createHalqa = async (e: React.FormEvent) => {
@@ -125,7 +178,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex gap-2 mr-4">
                   <button onClick={() => handleAcceptInvite(invite)} className="w-10 h-10 bg-white text-blue-600 rounded-xl flex items-center justify-center shadow-sm"><Check size={20} /></button>
-                  <button onClick={() => handleRejectInvite(invite.id)} className="w-10 h-10 bg-blue-400/50 text-white rounded-xl flex items-center justify-center"><X size={20} /></button>
+                  <button onClick={() => handleRejectInvite(invite)} className="w-10 h-10 bg-blue-400/50 text-white rounded-xl flex items-center justify-center"><X size={20} /></button>
                 </div>
               </div>
             ))}
@@ -147,8 +200,8 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-3">
               {halqas.map((halqa) => (
-                <div 
-                  key={halqa.id} 
+                <div
+                  key={halqa.id}
                   onClick={() => router.push(`/halqa/${halqa.id}`)}
                   className="bg-white p-4 rounded-[28px] border border-slate-100 hover:border-blue-500 transition-all flex items-center gap-4 cursor-pointer group shadow-sm active:scale-95"
                 >

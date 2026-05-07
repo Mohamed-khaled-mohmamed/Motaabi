@@ -69,12 +69,24 @@ CREATE TABLE IF NOT EXISTS attendance (
   UNIQUE(student_id, date)
 );
 
+CREATE TABLE IF NOT EXISTS invitations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  halqa_id UUID REFERENCES halqas ON DELETE CASCADE NOT NULL,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'editor',
+  status TEXT CHECK (status IN ('pending', 'accepted', 'rejected')) DEFAULT 'pending',
+  invited_by UUID REFERENCES auth.users,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+  UNIQUE(halqa_id, email)
+);
+
 -- 3. تفعيل الحماية RLS
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE halqas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE halqa_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
 
 -- 4. وظائف الحماية (Security Definer لتجنب التكرار اللانهائي)
 CREATE OR REPLACE FUNCTION public.check_membership(target_halqa_id UUID)
@@ -113,20 +125,63 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 5. تطبيق السياسات الجديدة باستخدام الوظائف الآمنة
+-- (نستخدم DROP IF EXISTS أولاً لتجنب أخطاء "already exists" عند إعادة التشغيل)
+
+DROP POLICY IF EXISTS "Profiles visibility" ON profiles;
+DROP POLICY IF EXISTS "Profiles update" ON profiles;
 CREATE POLICY "Profiles visibility" ON profiles FOR SELECT USING (true);
 CREATE POLICY "Profiles update" ON profiles FOR UPDATE USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Halqas access" ON halqas;
+DROP POLICY IF EXISTS "Halqas creation" ON halqas;
+DROP POLICY IF EXISTS "Halqas update" ON halqas;
+DROP POLICY IF EXISTS "Halqas deletion" ON halqas;
 CREATE POLICY "Halqas access" ON halqas FOR SELECT USING (public.check_membership(id));
 CREATE POLICY "Halqas creation" ON halqas FOR INSERT WITH CHECK (auth.uid() = created_by);
+CREATE POLICY "Halqas update" ON halqas FOR UPDATE USING (auth.uid() = created_by);
+CREATE POLICY "Halqas deletion" ON halqas FOR DELETE USING (auth.uid() = created_by);
 
+DROP POLICY IF EXISTS "Members access" ON halqa_members;
+DROP POLICY IF EXISTS "Members management" ON halqa_members;
+DROP POLICY IF EXISTS "Members self delete" ON halqa_members;
 CREATE POLICY "Members access" ON halqa_members FOR SELECT USING (public.check_membership(halqa_id));
 CREATE POLICY "Members management" ON halqa_members FOR ALL USING (public.is_halqa_owner(halqa_id));
+-- Allow members to delete themselves (leave or be kicked via kick system)
+CREATE POLICY "Members self delete" ON halqa_members FOR DELETE USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Students access" ON students;
+DROP POLICY IF EXISTS "Students management" ON students;
 CREATE POLICY "Students access" ON students FOR SELECT USING (public.check_membership(halqa_id));
 CREATE POLICY "Students management" ON students FOR ALL USING (public.is_halqa_editor(halqa_id));
 
+DROP POLICY IF EXISTS "Attendance access" ON attendance;
+DROP POLICY IF EXISTS "Attendance management" ON attendance;
 CREATE POLICY "Attendance access" ON attendance FOR SELECT USING (public.check_membership(halqa_id));
 CREATE POLICY "Attendance management" ON attendance FOR ALL USING (public.is_halqa_editor(halqa_id));
+
+DROP POLICY IF EXISTS "Invitations access" ON invitations;
+DROP POLICY IF EXISTS "Invitations insert by owner" ON invitations;
+DROP POLICY IF EXISTS "Invitations update by recipient" ON invitations;
+DROP POLICY IF EXISTS "Invitations delete by recipient" ON invitations;
+DROP POLICY IF EXISTS "Invitations delete by owner" ON invitations;
+CREATE POLICY "Invitations access" ON invitations FOR SELECT USING (
+  email = auth.jwt() ->> 'email' OR public.is_halqa_owner(halqa_id)
+);
+CREATE POLICY "Invitations insert by owner" ON invitations FOR INSERT WITH CHECK (
+  public.is_halqa_owner(halqa_id)
+);
+-- Recipient can update status (accept/reject)
+CREATE POLICY "Invitations update by recipient" ON invitations FOR UPDATE USING (
+  email = auth.jwt() ->> 'email'
+);
+-- Recipient can delete/reject their own invite
+CREATE POLICY "Invitations delete by recipient" ON invitations FOR DELETE USING (
+  email = auth.jwt() ->> 'email'
+);
+-- Owner/admin can delete any invite in their halqa
+CREATE POLICY "Invitations delete by owner" ON invitations FOR DELETE USING (
+  public.is_halqa_owner(halqa_id)
+);
 
 -- 6. التلقائيات (Triggers)
 CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS TRIGGER AS $$
